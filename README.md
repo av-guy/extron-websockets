@@ -1,30 +1,25 @@
 # WebSocketServer And WebSocketClient
 
-## In Progress
-
 ### Summary
 
 An Extron based WebSocketServer and WebSocketClient per RFC 6455
 
+### Contribute
+
+> Check project status
+
 > Create a pull request
 
-> Write some tests
+> Write tests FIRST
 
 > Implement functionality
 
 > Make sure tests pass
 
-I really could use your help on this.
-
-The Server class uses the Python select module and is intended ONLY for local
-testing.
-
-Please DO NOT have WebSocketServer or WebSocketClient handle their own
-connections. These are meant to be public API's for the ServerInterface
-and ClientInterface respectively.
+### Status
 
 > Current: https://tools.ietf.org/html/rfc6455#section-3
 
-> Next: https://tools.ietf.org/html/rfc6455#section-4.1
+> Test Status: FAILING
 
 - **[MIT license](http://opensource.org/licenses/mit-license.php)**
