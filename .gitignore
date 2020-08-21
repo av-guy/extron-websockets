@@ -1,0 +1,9 @@
+/src/__pycache__
+/src/.pytest_cache
+/src/conf
+/src/dist
+/src/docs
+/src/drivers
+/src/dsp
+/src/extronlib
+/src/gui
