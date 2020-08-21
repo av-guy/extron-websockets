@@ -21,7 +21,7 @@ testing.
 
 Please DO NOT have WebSocketServer or WebSocketClient handle their own
 connections. These are meant to be public API's for the ServerInterface
-and ClientInterface to use for speaking to each other ONLY.
+and ClientInterface respectively.
 
 > Current: https://tools.ietf.org/html/rfc6455#section-3
 
