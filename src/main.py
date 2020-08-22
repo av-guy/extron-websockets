@@ -12,6 +12,9 @@ from base64 import b64encode
 pp = pprint.PrettyPrinter(indent=2)
 
 
+class BadRequest(Exception):
+    pass
+
 class Router():
     routes = {
         'chat': True
@@ -114,15 +117,14 @@ class WebSocketClient(WebSocket):
         self.custom.append(custom)
 
     def create_client_handshake(self):
+        self.key = self.generate_random_key().decode('utf-8')
         handshake = ''
         headers = [
             '{0} {1} HTTP/1.1'.format(self.method, self.path),
             'Host: {0}'.format(self.host),
             'Upgrade: {0}'.format(self.upgrade),
             'Connection: {0}'.format(self.connection),
-            'Sec-WebSocket-Key: {0}'.format(
-                self.generate_random_key().decode('utf-8')
-            ),
+            'Sec-WebSocket-Key: {0}'.format(self.key),
             'Sec-WebSocket-Version: {0}'.format(self.version)
         ]
         if len(self.protocols) >= 1:
@@ -146,6 +148,7 @@ class WebSocketClient(WebSocket):
         return handshake
 
     def establish_connection(self):
+        self.CONNECTING = True
         handshake = self.create_client_handshake()
         pass
 
@@ -153,10 +156,37 @@ class WebSocketClient(WebSocket):
         rand = b64encode(os.urandom(bytes))
         return rand
 
+    def validate_connection(self, payload):
+        connection = payload['Connection']
+        if connection != 'Upgrade':
+            self.CONNECTING = False
+            raise ValueError('Connection does not match \'Upgrade\'')
+
+    def validate_key(self, payload):
+        _hash = payload['Sec-WebSocket-Accept']
+        hash = self._create_hash(self.key)
+        if _hash != hash:
+            raise ValueError('Hash invalid')
+
+    def validate_status(self, payload):
+        status = payload['status'][0]
+        if '101' not in status:
+            self.CONNECTING = False
+            raise BadRequest(status)
+
+    def validate_upgrade(self, payload):
+        upgrade = payload['Upgrade']
+        if upgrade != 'websocket':
+            self.CONNECTING = False
+            raise ValueError('Upgrade value does not match \'websocket\'')
+
     def validate_response(self, response):
-        response = response.decode('utf-8').split('\r\n')
+        response = response.decode('utf-8').strip().split('\r\n')
         payload = Payload.server(response)
-        pp.pprint(payload)
+        self.validate_status(payload)
+        self.validate_upgrade(payload)
+        self.validate_connection(payload)
+        self.validate_key(payload)
 
 
 class WebSocketServer(WebSocket):
@@ -271,7 +301,7 @@ class Payload():
         for item in payload:
             item = item.split(': ')
             if 'HTTP/1.1' in item[0]:
-                payload_dict['method'] = item
+                payload_dict['status'] = item
             else:
                 key, value = item
                 payload_dict[key] = value

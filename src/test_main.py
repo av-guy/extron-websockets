@@ -2,6 +2,7 @@ from main import WebSocketServer
 from main import WebSocketClient
 from main import Server
 from main import Payload
+from main import BadRequest
 
 import pprint
 import pytest
@@ -80,3 +81,68 @@ def test_add_custom():
     handshake = ws_client.create_client_handshake().strip().split('\r\n')
     payload = Payload.decode(handshake)
     assert payload['Authorization'] == 'Basic YWxhZGRpbjpvcGVuc2VzYW1l'
+
+
+def test_not_101():
+    test_uri = 'ws://localhost:8080/chat'
+    ws_client = WebSocketClient(test_uri)
+    mock_response = '''{0}\r\n\r\n'''.format(
+        'HTTP/1.1 400 Internal Server Error',
+    )
+    mock_response = mock_response.encode()
+    ws_client = WebSocketClient(test_uri)
+    ws_client.CONNECTING = True
+    with pytest.raises(BadRequest):
+        ws_client.validate_response(mock_response)
+        assert ws_client.CONNECTING is not True
+
+
+def test_bad_upgrade():
+    test_uri = 'ws://localhost:8080/chat'
+    ws_client = WebSocketClient(test_uri)
+    mock_response = '''{0}\r\nUpgrade: {1}\r\n\r\n'''.format(
+        'HTTP/1.1 101 Switching Protocols',
+        'WebSacket'
+    )
+    mock_response = mock_response.encode()
+    ws_client = WebSocketClient(test_uri)
+    ws_client.CONNECTING = True
+    with pytest.raises(ValueError):
+        ws_client.validate_response(mock_response)
+        assert ws_client.CONNECTING is not True
+
+
+def test_bad_connection():
+    test_uri = 'ws://localhost:8080/chat'
+    ws_client = WebSocketClient(test_uri)
+    mock_response = '''{0}\r\nUpgrade: {1}\r\nConnection: {2}\r\n\r\n'''.format(
+        'HTTP/1.1 101 Switching Protocols',
+        'websocket',
+        'upgra'
+    )
+    mock_response = mock_response.encode()
+    ws_client = WebSocketClient(test_uri)
+    ws_client.CONNECTING = True
+    with pytest.raises(ValueError):
+        ws_client.validate_response(mock_response)
+        assert ws_client.CONNECTING is not True
+
+
+def test_incorrect_key():
+    test_uri = "ws://localhost:8080/chat"
+    ws_client = WebSocketClient(test_uri)
+    ws_client.key = ws_client.generate_random_key().decode('utf-8')
+    mock_response = '''{0}\r\nUpgrade: {1}\r\nConnection: {2}\r\nSec-WebSocket-Accept: {3}\r\n\r\n'''.format(
+        'HTTP/1.1 101 Switching Protocols',
+        'websocket',
+        'Upgrade',
+        'bad_key'
+    )
+    mock_response = mock_response.encode()
+    ws_client.CONNECTING = True
+    with pytest.raises(ValueError):
+        ws_client.validate_response(mock_response)
+
+
+def test_correct_response():
+    assert True is False
