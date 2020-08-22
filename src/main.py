@@ -23,7 +23,7 @@ class WebSocket():
         self.GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
         self.upgrade = 'websocket'
         self.connection = 'Upgrade'
-        self.regex = r"(ws|wss)://|([a-zA-Z]*):?(\d*)?/?(\w*)?\??(.*)?"
+        self.regex = r"(ws|wss)://([a-zA-Z]*):?(\d*)?/?(\w*)?\??(.*)?"
         self.uri_format = "ws://host[:port]/path[?query]"
         self.method = 'GET'
         self.version = '13'
@@ -45,10 +45,11 @@ class WebSocket():
         return b64encode(sha1(concatenation).digest()).decode('utf-8')
 
     def _split_uri(self, uri):
-        secure, host, port, path, query, end = re.split(
+        print(re.split(self.regex, uri))
+        start, secure, host, port, path, query, end = re.split(
             self.regex, uri
         )
-        return (secure, host, port, path, query, end)
+        return (secure, host, port, path, query)
 
     def _verify_fragments(self, host, port, path, query):
         if len(host) <= 0:
@@ -63,7 +64,7 @@ class WebSocket():
             raise ValueError('Fragment identifiers MUST NOT be used')
         match = re.search(self.regex, uri)
         if match.group() is not None:
-            start, host, port, path, query, end = self._split_uri(uri)
+            secure, host, port, path, query = self._split_uri(uri)
             host, path = self._verify_fragments(host, port, path, query)
             self._assign_fragments(host, port, path, query)
         else:
@@ -79,6 +80,7 @@ class WebSocketClient(WebSocket):
     ):
         super().__init__()
         self.fragments = self._verify_uri(uri)
+        self.CONNECTING = False
 
     def verify(self, uri):
         return True
