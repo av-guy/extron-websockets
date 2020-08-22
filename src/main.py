@@ -27,6 +27,7 @@ class WebSocket():
         self.uri_format = "ws://host[:port]/path[?query]"
         self.method = 'GET'
         self.version = '13'
+        self.secure = False
 
     def recieve(self, payload):
         pass
@@ -45,7 +46,6 @@ class WebSocket():
         return b64encode(sha1(concatenation).digest()).decode('utf-8')
 
     def _split_uri(self, uri):
-        print(re.split(self.regex, uri))
         start, secure, host, port, path, query, end = re.split(
             self.regex, uri
         )
@@ -65,12 +65,31 @@ class WebSocket():
         match = re.search(self.regex, uri)
         if match.group() is not None:
             secure, host, port, path, query = self._split_uri(uri)
+            if secure == 'wss':
+                self.secure = True
             host, path = self._verify_fragments(host, port, path, query)
             self._assign_fragments(host, port, path, query)
         else:
             raise ValueError('''URI is not in correct format: {0}'''.format(
                 self.uri_format
             ))
+
+
+class WebSocketPool():
+    def __init__(self, connections=5):
+        self.connections = connections
+        self.pool = []
+
+    def add_socket(self, ws_client):
+        self.pool.append(ws_client)
+
+    def check_status(self, host, port):
+        connecting = [
+            active for active in self.connections if active.host
+            == host and active.port == port and active.CONNECTING
+        ]
+        if len(connecting) >= 1:
+            return True
 
 
 class WebSocketClient(WebSocket):
@@ -81,24 +100,63 @@ class WebSocketClient(WebSocket):
         super().__init__()
         self.fragments = self._verify_uri(uri)
         self.CONNECTING = False
+        self.protocols = []
+        self.extensions = []
+        self.custom = []
 
-    def verify(self, uri):
-        return True
+    def add_extension(self, extension):
+        self.extensions.append(extension)
+
+    def add_protocol(self, protocol):
+        self.protocols.append(protocol)
+
+    def add_custom(self, custom):
+        self.custom.append(custom)
+
+    def create_client_handshake(self):
+        handshake = ''
+        headers = [
+            '{0} {1} HTTP/1.1'.format(self.method, self.path),
+            'Host: {0}'.format(self.host),
+            'Upgrade: {0}'.format(self.upgrade),
+            'Connection: {0}'.format(self.connection),
+            'Sec-WebSocket-Key: {0}'.format(
+                self.generate_random_key().decode('utf-8')
+            ),
+            'Sec-WebSocket-Version: {0}'.format(self.version)
+        ]
+        if len(self.protocols) >= 1:
+            headers.append(
+                'Sec-WebSocket-Protocols: {0}'.format(", ".join(
+                    self.protocols
+                ))
+            )
+        if len(self.extensions) >= 1:
+            headers.append(
+                'Sec-WebSocket-Extensions: {0}'.format(", ".join(
+                    self.extensions
+                ))
+            )
+        if len(self.custom) >= 1:
+            for header in self.custom:
+                headers.append(header)
+        for header in headers:
+            handshake += "{0}\r\n".format(header)
+        handshake += '\r\n'
+        return handshake
+
+    def establish_connection(self):
+        handshake = self.create_client_handshake()
+        pass
 
     def generate_random_key(self, bytes=16):
         rand = b64encode(os.urandom(bytes))
         return rand
 
-    def create_client_handshake(self):
-        return '''{0} {1} HTTP/1.1\r\nHost: {2}\r\nUpgrade: {3}\r\nConnection: {4}\r\nSec-WebSocket-Key: {5}\r\nSec-WebSocket-Version: {6}\r\nUser-Agent: python\r\nPragma: no-cache\r\n Cache-Control: no-cache\r\n\r\n'''.format( # noqa
-            self.method,
-            self.path,
-            self.host,
-            self.upgrade,
-            self.connection,
-            self.generate_random_key().decode('utf-8'),
-            self.version
-        ).strip()
+    def validate_response(self, response):
+        response = response.decode('utf-8').split('\r\n')
+        payload = Payload.server(response)
+        pp.pprint(payload)
 
 
 class WebSocketServer(WebSocket):
@@ -147,7 +205,6 @@ class Server(socket.socket):
                 data = data.decode('utf-8').strip()
                 split = data.split('\r\n')
                 payload = Payload.decode(split)
-                print(payload)
                 ws = Payload.validate_ws(payload)
                 if ws:
                     web_socket_server = WebSocketServer()
@@ -209,7 +266,7 @@ class Payload():
         return payload_dict
 
     @staticmethod
-    def decode_server(payload):
+    def server(payload):
         payload_dict = {}
         for item in payload:
             item = item.split(': ')

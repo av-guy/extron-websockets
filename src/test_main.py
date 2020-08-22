@@ -51,3 +51,32 @@ def test_fragment_identifier():
     test_uri = "ws://localhost:9090#cats"
     with pytest.raises(ValueError):
         WebSocketClient(test_uri)
+
+
+def test_add_protocols():
+    test_uri = 'ws://localhost:8080/chat'
+    ws_client = WebSocketClient(test_uri)
+    ws_client.add_protocol('cats')
+    ws_client.add_protocol('meow')
+    handshake = ws_client.create_client_handshake().strip().split('\r\n')
+    payload = Payload.decode(handshake)
+    assert payload['Sec-WebSocket-Protocols'] == 'cats, meow'
+
+
+def test_add_extension():
+    test_uri = 'ws://localhost:8080/chat'
+    ws_client = WebSocketClient(test_uri)
+    ws_client.add_extension('cats')
+    ws_client.add_extension('meow')
+    handshake = ws_client.create_client_handshake().strip().split('\r\n')
+    payload = Payload.decode(handshake)
+    assert payload['Sec-WebSocket-Extensions'] == 'cats, meow'
+
+
+def test_add_custom():
+    test_uri = 'ws://localhost:8080/chat'
+    ws_client = WebSocketClient(test_uri)
+    ws_client.add_custom('Authorization: Basic YWxhZGRpbjpvcGVuc2VzYW1l')
+    handshake = ws_client.create_client_handshake().strip().split('\r\n')
+    payload = Payload.decode(handshake)
+    assert payload['Authorization'] == 'Basic YWxhZGRpbjpvcGVuc2VzYW1l'
