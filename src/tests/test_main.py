@@ -1,8 +1,7 @@
-from main import WebSocketServer
-from main import WebSocketClient
-from main import Server
-from main import Payload
-from main import BadRequest
+from src.dev.ws_server import WebSocketServer
+from src.dev.ws_client import WebSocketClient
+from src.dev.ws_base import Payload
+from src.dev.ws_client import BadRequest
 
 import pprint
 import pytest
@@ -135,13 +134,48 @@ def test_incorrect_key():
     mock_response = '''{0}\r\nUpgrade: {1}\r\nConnection: {2}\r\nSec-WebSocket-Accept: {3}\r\n\r\n'''.format(
         'HTTP/1.1 101 Switching Protocols',
         'websocket',
-        'Upgrade',
+        'UpGrADe',
         'bad_key'
     )
     mock_response = mock_response.encode()
     ws_client.CONNECTING = True
     with pytest.raises(ValueError):
         ws_client.validate_response(mock_response)
+
+
+def test_bad_extension():
+    test_uri = "ws://localhost:8080/chat"
+    ws_client = WebSocketClient(test_uri)
+    ws_client.key = ws_client.generate_random_key()
+    mock_response = '''{0}\r\nUpgrade: {1}\r\nConnection: {2}\r\nSec-WebSocket-Accept: {3}\r\nSec-WebSocket-Extensions: {4}\r\n\r\n'''.format(
+        'HTTP/1.1 101 Switching Protocols',
+        'websocket',
+        'UpGrADe',
+        ws_client._create_hash(ws_client.key),
+        'not, here'
+    )
+    mock_response = mock_response.encode()
+    ws_client.CONNECTING = True
+    with pytest.raises(ValueError):
+        assert ws_client.CONNECTING is not False
+        ws_client.validate_response(mock_response)
+
+
+def test_good_extension():
+    test_uri = "ws://localhost:8080/chat"
+    ws_client = WebSocketClient(test_uri)
+    ws_client.add_extension('not')
+    ws_client.add_extension('here')
+    ws_client.key = ws_client.generate_random_key()
+    mock_response = '''{0}\r\nUpgrade: {1}\r\nConnection: {2}\r\nSec-WebSocket-Accept: {3}\r\nSec-WebSocket-Extensions: {4}\r\n\r\n'''.format(
+        'HTTP/1.1 101 Switching Protocols',
+        'websocket',
+        'UpGrADe',
+        ws_client._create_hash(ws_client.key),
+        'not, here'
+    )
+    mock_response = mock_response.encode()
+    ws_client.validate_response(mock_response)
 
 
 def test_correct_response():
